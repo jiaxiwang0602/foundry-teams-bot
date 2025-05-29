@@ -1,6 +1,14 @@
-flask
-gunicorn
-botbuilder-core
-azure-identity
-azure-ai-projects==1.0.0b10
-aiohttp>=3.8.0
+flask==2.3.3
+aiohttp==3.9.5
+
+# Bot Framework SDK
+botbuilder-core==4.14.4
+
+# Azure Identity for federated credentials
+azure-identity==1.15.0
+
+# Azure AI Foundry (Azure AI Projects SDK)
+azure-ai-projects==1.0.0b1
+
+# Gunicorn server (used in App Service Linux)
+gunicorn==21.2.0
