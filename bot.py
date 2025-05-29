@@ -1,5 +1,6 @@
 import os
 import asyncio
+import traceback
 from flask import Flask, request, Response
 from botbuilder.core import (
     BotFrameworkAdapterSettings,
@@ -14,7 +15,7 @@ from azure.identity import DefaultAzureCredential
 app = Flask(__name__)
 print("⚙️ Flask app initialized.")
 
-# -------------------- Bot Adapter (Fixed constructor) --------------------
+# -------------------- Bot Adapter --------------------
 settings = BotFrameworkAdapterSettings(
     app_id=os.environ.get("MicrosoftAppId", ""),
     app_password=os.environ.get("MicrosoftAppPassword", "")  # "" for federated identity
@@ -33,6 +34,7 @@ try:
     print("✅ Foundry agent and thread initialized.")
 except Exception as e:
     print(f"❌ Failed to initialize Foundry agent: {e}")
+    traceback.print_exc()
 
 # -------------------- Routes --------------------
 @app.route("/", methods=["GET"])
@@ -42,22 +44,29 @@ def index():
 @app.route("/api/messages", methods=["POST"])
 def messages():
     try:
+        print("📥 Raw POST body:", request.get_data(as_text=True))
+        print("📥 Parsed JSON:", request.json)
+
         activity = Activity().deserialize(request.json)
         print("📩 Message received from Teams:", activity.text)
 
         async def process(turn_context: TurnContext):
             user_input = turn_context.activity.text or "[No input]"
-            print("🔍 Processing:", user_input)
+            print("🔍 Processing user input:", user_input)
 
-            # Send input to Foundry agent
+            print("🧠 Sending user message to Foundry agent...")
             project_client.agents.create_message(thread.id, "user", user_input)
-            project_client.agents.create_and_process_run(thread.id, agent.id)
-            response_messages = project_client.agents.list_messages(thread.id)
 
-            # Send the last assistant message back to Teams
+            print("🚀 Triggering agent run...")
+            project_client.agents.create_and_process_run(thread.id, agent.id)
+
+            print("📨 Fetching all messages from thread...")
+            response_messages = project_client.agents.list_messages(thread.id)
+            print("📨 Received messages:", response_messages.text_messages)
+
             for msg in reversed(response_messages.text_messages):
                 if msg.role == "assistant":
-                    print("📤 Responding with:", msg.content)
+                    print("📤 Responding to user with:", msg.content)
                     await turn_context.send_activity(msg.content)
                     break
             else:
@@ -68,10 +77,12 @@ def messages():
         loop.run_until_complete(adapter.process_activity(activity, "", process))
         loop.close()
 
+        print("✅ POST handled successfully.")
         return Response(status=200)
 
     except Exception as e:
-        print(f"❌ Error handling message: {e}")
+        print("❌ Error handling message:")
+        traceback.print_exc()
         return Response("Internal Server Error", status=500)
 
 # -------------------- Entrypoint --------------------
