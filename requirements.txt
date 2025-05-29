@@ -1,0 +1,5 @@
+flask
+botbuilder-core
+azure-ai-projects==1.0.0b10
+azure-identity
+gunicorn
