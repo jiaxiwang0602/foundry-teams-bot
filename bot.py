@@ -6,58 +6,70 @@ from botbuilder.schema import Activity
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 
+# -------------------- Flask App Setup --------------------
 app = Flask(__name__)
+print("⚙️ Flask app initialized.")
 
-# Bot credentials (no password because we use federated identity)
+# -------------------- Bot Adapter --------------------
 adapter = BotFrameworkAdapter(
     app_id=os.environ.get("MicrosoftAppId", ""),
-    app_password=""
+    app_password=""  # Federated auth: no secret needed
 )
 
-# Azure AI Foundry setup
-credential = DefaultAzureCredential()
-project_client = AIProjectClient.from_connection_string(
-    credential=credential,
-    conn_str="eastus.api.azureml.ms;f920ee3b-6bdc-48c6-a487-9e0397b69322;rashmitest;rashmid-5367"
-)
-agent = project_client.agents.get_agent("asst_cPyJBoSit1obmj3BJyfKSY7R")
-thread = project_client.agents.get_thread("thread_wEYymWvgUhWB1HlVJk3j1tX2")
+# -------------------- Azure AI Foundry Agent Setup --------------------
+try:
+    credential = DefaultAzureCredential()
+    project_client = AIProjectClient.from_connection_string(
+        credential=credential,
+        conn_str="eastus.api.azureml.ms;f920ee3b-6bdc-48c6-a487-9e0397b69322;rashmitest;rashmid-5367"
+    )
+    agent = project_client.agents.get_agent("asst_cPyJBoSit1obmj3BJyfKSY7R")
+    thread = project_client.agents.get_thread("thread_wEYymWvgUhWB1HlVJk3j1tX2")
+    print("✅ Foundry agent and thread initialized.")
+except Exception as e:
+    print(f"❌ Failed to initialize Foundry agent: {e}")
 
-# Health check endpoint (optional, useful for Azure App Service)
+# -------------------- Routes --------------------
 @app.route("/", methods=["GET"])
 def index():
-    return Response("Bot is running.", status=200)
+    return Response("✅ Bot is running.", status=200)
 
 @app.route("/api/messages", methods=["POST"])
 def messages():
     try:
         activity = Activity().deserialize(request.json)
+        print("📩 Message received from Teams:", activity.text)
 
         async def process(turn_context: TurnContext):
-            user_input = turn_context.activity.text or ""
+            user_input = turn_context.activity.text or "[No input]"
+            print("🔍 Processing:", user_input)
 
-            # Send user input to Foundry agent
+            # Send input to Foundry agent
             project_client.agents.create_message(thread.id, "user", user_input)
             project_client.agents.create_and_process_run(thread.id, agent.id)
             response_messages = project_client.agents.list_messages(thread.id)
 
-            # Reply with last assistant response
+            # Send the last assistant message back to Teams
             for msg in reversed(response_messages.text_messages):
                 if msg.role == "assistant":
+                    print("📤 Responding with:", msg.content)
                     await turn_context.send_activity(msg.content)
                     break
+            else:
+                print("⚠️ No assistant response found.")
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        task = loop.create_task(adapter.process_activity(activity, "", process))
-        loop.run_until_complete(task)
+        loop.run_until_complete(adapter.process_activity(activity, "", process))
         loop.close()
 
         return Response(status=200)
-    
+
     except Exception as e:
-        print(f"Error handling message: {e}")
+        print(f"❌ Error handling message: {e}")
         return Response("Internal Server Error", status=500)
 
+# -------------------- Entrypoint --------------------
 if __name__ == "__main__":
+    print("🚀 Starting Flask app...")
     app.run(host="0.0.0.0", port=8000)
