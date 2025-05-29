@@ -1,6 +1,6 @@
 flask
 gunicorn
-aiohttp
-azure-ai-projects==1.0.0b10
 botbuilder-core
 azure-identity
+azure-ai-projects==1.0.0b10
+aiohttp>=3.8.0
