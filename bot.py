@@ -1,7 +1,11 @@
 import os
 import asyncio
 from flask import Flask, request, Response
-from botbuilder.core import BotFrameworkAdapter, TurnContext
+from botbuilder.core import (
+    BotFrameworkAdapterSettings,
+    BotFrameworkAdapter,
+    TurnContext,
+)
 from botbuilder.schema import Activity
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
@@ -10,11 +14,12 @@ from azure.identity import DefaultAzureCredential
 app = Flask(__name__)
 print("⚙️ Flask app initialized.")
 
-# -------------------- Bot Adapter --------------------
-adapter = BotFrameworkAdapter(
+# -------------------- Bot Adapter (Fixed constructor) --------------------
+settings = BotFrameworkAdapterSettings(
     app_id=os.environ.get("MicrosoftAppId", ""),
-    app_password=""  # Federated auth: no secret needed
+    app_password=os.environ.get("MicrosoftAppPassword", "")  # "" for federated identity
 )
+adapter = BotFrameworkAdapter(settings)
 
 # -------------------- Azure AI Foundry Agent Setup --------------------
 try:
