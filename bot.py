@@ -58,7 +58,7 @@ def messages():
                 content=user_input
             )
 
-            # Trigger agent run with keyword arguments
+            # Trigger agent run
             print("🚀 Triggering agent run...")
             project_client.agents.create_and_process_run(
                 thread_id=thread.id,
@@ -67,8 +67,8 @@ def messages():
 
             # Fetch and send back last assistant response
             print("📨 Fetching response from Foundry agent...")
-            response_messages = project_client.agents.list_messages(thread_id=thread.id)
-            for msg in reversed(response_messages.text_messages):
+            response_messages = list(project_client.agents.list_messages(thread_id=thread.id))
+            for msg in reversed(response_messages):
                 if msg.role == "assistant":
                     print("📤 Responding with:", msg.content)
                     await turn_context.send_activity(msg.content)
