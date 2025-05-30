@@ -9,6 +9,7 @@ from botbuilder.core import (
 from botbuilder.schema import Activity
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
+from azure.ai.projects.models import CreateAndProcessRunRequest
 
 # -------------------- Flask App Setup --------------------
 app = Flask(__name__)
@@ -21,7 +22,7 @@ settings = BotFrameworkAdapterSettings(
 )
 adapter = BotFrameworkAdapter(settings)
 
-# -------------------- Azure AI Foundry Agent Setup --------------------
+# -------------------- Foundry Agent Setup --------------------
 try:
     credential = DefaultAzureCredential()
     project_client = AIProjectClient.from_connection_string(
@@ -58,15 +59,16 @@ def messages():
                 content=user_input
             )
 
-            # Trigger agent run
+            # Trigger agent run with keyword arguments
             print("🚀 Triggering agent run...")
-            project_client.agents.create_and_process_run(thread.id, agent.id)
+            project_client.agents.create_and_process_run(
+                thread_id=thread.id,
+                agent_id=agent.id
+            )
 
-            # Fetch response messages
-            print("📨 Fetching messages from Foundry...")
-            response_messages = project_client.agents.list_messages(thread.id)
-
-            # Send last assistant message back to Teams
+            # Fetch and send back last assistant response
+            print("📨 Fetching response from Foundry agent...")
+            response_messages = project_client.agents.list_messages(thread_id=thread.id)
             for msg in reversed(response_messages.text_messages):
                 if msg.role == "assistant":
                     print("📤 Responding with:", msg.content)
