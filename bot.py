@@ -62,7 +62,7 @@ def messages():
             print("🚀 Triggering agent run...")
             project_client.agents.create_and_process_run(
                 thread_id=thread.id,
-                agent_id=agent.id
+                assistant_id=agent.id
             )
 
             # Fetch and send back last assistant response
