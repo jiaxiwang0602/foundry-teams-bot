@@ -27,7 +27,7 @@ try:
     print("Initializing Azure credentials...")
     credential = DefaultAzureCredential()
 
-    # DEBUG: Attempt to fetch token
+    # DEBUG: Attempt to fetch token and print its source
     try:
         token = credential.get_token("https://management.azure.com/.default")
         print("Token acquired:", token.token[:40] + "...")
@@ -45,7 +45,7 @@ try:
     thread = project_client.agents.get_thread("thread_wEYymWvgUhWB1HlVJk3j1tX2")
     print("Foundry agent and thread initialized.")
 except Exception as e:
-    print("Failed to initialize Foundry agent or project client:", e)
+    print(f"Failed to initialize Foundry agent or project client: {e}")
     traceback.print_exc()
 
 # -------------------- Routes --------------------
@@ -65,7 +65,7 @@ def messages():
             print("Processing:", user_input)
 
             try:
-                print("Sending user message to Foundry agent...")
+                print("Creating message in thread...")
                 project_client.agents.create_message(
                     thread_id=thread.id,
                     role="user",
@@ -86,7 +86,7 @@ def messages():
                 traceback.print_exc()
 
             try:
-                print("Fetching response from Foundry agent...")
+                print("Listing messages from agent...")
                 response_messages = project_client.agents.list_messages(thread_id=thread.id)
 
                 print("Full response object:")
@@ -96,13 +96,22 @@ def messages():
                 for msg in reversed(response_messages.data):
                     if getattr(msg, "role", None) == "assistant":
                         print("Responding with:", msg.content)
-                        await turn_context.send_activity(msg.content)
+                        text = ""
+                        if isinstance(msg.content, list):
+                            for content_piece in msg.content:
+                                if content_piece.get("type") == "text":
+                                    text = content_piece["text"]["value"]
+                                    break
+                        else:
+                            text = str(msg.content)
+
+                        await turn_context.send_activity(text)
                         break
                 else:
                     print("No assistant response found.")
                     await turn_context.send_activity("No assistant response found.")
             except Exception:
-                print("Failed to list or parse messages:")
+                print("Failed to process agent response:")
                 traceback.print_exc()
                 await turn_context.send_activity("Failed to get response from agent.")
 
@@ -114,7 +123,7 @@ def messages():
         return Response("Processed", status=200)
 
     except Exception:
-        print("Error~~~~~~~~~yayaya Error handling message:")
+        print("Error handling message:")
         traceback.print_exc()
         return Response("Internal Server Error", status=500)
 
