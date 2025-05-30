@@ -9,7 +9,6 @@ from botbuilder.core import (
 from botbuilder.schema import Activity
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
-from azure.ai.projects.models import CreateAndProcessRunRequest
 
 # -------------------- Flask App Setup --------------------
 app = Flask(__name__)
