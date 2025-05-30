@@ -10,18 +10,15 @@ from botbuilder.schema import Activity
 from azure.ai.projects import AIProjectClient
 from azure.identity import DefaultAzureCredential
 
-# -------------------- Flask App Setup --------------------
 app = Flask(__name__)
 print("⚙️ Flask app initialized.")
 
-# -------------------- Bot Adapter --------------------
 settings = BotFrameworkAdapterSettings(
     app_id=os.environ.get("MicrosoftAppId", ""),
-    app_password=os.environ.get("MicrosoftAppPassword", "")  # "" for federated identity
+    app_password=os.environ.get("MicrosoftAppPassword", "")
 )
 adapter = BotFrameworkAdapter(settings)
 
-# -------------------- Foundry Agent Setup --------------------
 try:
     credential = DefaultAzureCredential()
     project_client = AIProjectClient.from_connection_string(
@@ -34,7 +31,6 @@ try:
 except Exception as e:
     print(f"❌ Failed to initialize Foundry agent: {e}")
 
-# -------------------- Routes --------------------
 @app.route("/", methods=["GET"])
 def index():
     return Response("✅ Bot is running.", status=200)
@@ -50,44 +46,51 @@ def messages():
             user_input = turn_context.activity.text or "[No input]"
             print("🔍 Processing:", user_input)
 
-            # Send input to Foundry agent
-            print("🧠 Sending user message to Foundry agent...")
-            project_client.agents.create_message(
-                thread_id=thread.id,
-                role="user",
-                content=user_input
-            )
+            try:
+                print("🧠 Sending user message to Foundry agent...")
+                project_client.agents.create_message(
+                    thread_id=thread.id,
+                    role="user",
+                    content=user_input
+                )
+            except Exception as e1:
+                print("❌ Failed to create message:", e1)
 
-            # Trigger agent run
-            print("🚀 Triggering agent run...")
-            project_client.agents.create_and_process_run(
-                thread_id=thread.id,
-                assistant_id=agent.id
-            )
+            try:
+                print("🚀 Triggering agent run...")
+                project_client.agents.create_and_process_run(
+                    thread_id=thread.id,
+                    assistant_id=agent.id
+                )
+            except Exception as e2:
+                print("❌ Failed to trigger run:", e2)
 
-            # Fetch and send back last assistant response
-            print("📨 Fetching response from Foundry agent...")
-            response_messages = list(project_client.agents.list_messages(thread_id=thread.id))
-            for msg in reversed(response_messages):
-                if msg.role == "assistant":
-                    print("📤 Responding with:", msg.content)
-                    await turn_context.send_activity(msg.content)
-                    break
-            else:
-                print("⚠️ No assistant response found.")
+            try:
+                print("📨 Fetching response from Foundry agent...")
+                response_messages = list(project_client.agents.list_messages(thread_id=thread.id))
+
+                print("🧾 Full response object:")
+                for i, msg in enumerate(response_messages):
+                    print(f"Message[{i}]:", msg.__dict__ if hasattr(msg, "__dict__") else str(msg))
+
+                # Optionally send a message back
+                await turn_context.send_activity("✅ Messages fetched and logged in server.")
+
+            except Exception as e3:
+                print("❌ Failed to list or parse messages:", e3)
+                await turn_context.send_activity("⚠️ Failed to get response from agent.")
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(adapter.process_activity(activity, "", process))
         loop.close()
 
-        return Response(status=200)
+        return Response("Processed", status=200)
 
     except Exception as e:
         print(f"❌ Error handling message: {e}")
         return Response("Internal Server Error", status=500)
 
-# -------------------- Entrypoint --------------------
 if __name__ == "__main__":
     print("🚀 Starting Flask app...")
     app.run(host="0.0.0.0", port=8000)
