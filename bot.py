@@ -88,7 +88,7 @@ def messages():
         return Response("Processed", status=200)
 
     except Exception as e:
-        print(f"❌ Error handling message: {e}")
+        print(f"❌ Error!!! handling message: {e}")
         return Response("Internal Server Error", status=500)
 
 if __name__ == "__main__":
