@@ -14,9 +14,15 @@ from azure.identity import DefaultAzureCredential
 app = Flask(__name__)
 print("Flask app initialized.")
 
+# Load adapter settings
+app_id = os.environ.get("MicrosoftAppId", "")
+app_password = os.environ.get("MicrosoftAppPassword", "")
+print(f"App ID: {app_id}")
+print(f"App Password set: {bool(app_password)}")
+
 settings = BotFrameworkAdapterSettings(
-    app_id=os.environ.get("MicrosoftAppId", ""),
-    app_password=os.environ.get("MicrosoftAppPassword", "")
+    app_id=app_id,
+    app_password=app_password
 )
 adapter = BotFrameworkAdapter(settings)
 
@@ -53,30 +59,25 @@ def messages():
             print("Processing:", user_input)
 
             try:
-                # Create new thread per message
                 new_thread = project_client.agents.create_thread()
                 print("New thread created:", new_thread.id)
 
-                # Post user message
                 project_client.agents.create_message(
                     thread_id=new_thread.id,
                     role="user",
                     content=user_input
                 )
 
-                # Trigger run
                 project_client.agents.create_and_process_run(
                     thread_id=new_thread.id,
                     assistant_id=agent.id
                 )
 
-                # Wait for response (optional: retry with delay in real case)
                 response_messages = project_client.agents.list_messages(thread_id=new_thread.id)
                 print("Full response object:")
                 for i, msg in enumerate(response_messages.data):
                     print(f"Message[{i}]:", msg.__dict__)
 
-                # Extract only the first assistant response
                 for msg in response_messages.data:
                     if getattr(msg, "role", None) == "assistant":
                         text = ""
