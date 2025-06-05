@@ -12,11 +12,11 @@ from azure.ai.projects import AIProjectClient
 app = Flask(__name__)
 print("Flask app initialized.")
 
-# ───────────── DEBUG – print auth-related env-vars ─────────────
+# ───────────── DEBUG – print auth-related vars ─────────────
 print("ENV MicrosoftAppType     =", repr(os.getenv("MicrosoftAppType")))
 print("ENV MicrosoftAppId       =", repr(os.getenv("MicrosoftAppId")))
 print("ENV MicrosoftAppTenantId =", repr(os.getenv("MicrosoftAppTenantId")))
-# ───────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
 
 # ───── Foundry client setup (unchanged) ───────────────────────
 try:
@@ -42,13 +42,12 @@ except Exception:
 # ───────────────────────────────────────────────────────────────
 
 # ───── Bot Framework adapter using Managed Identity ──────────
-APP_ID   = os.getenv("MicrosoftAppId", "")
-APP_TYPE = os.getenv("MicrosoftAppType", "ManagedIdentity")  # should be "ManagedIdentity"
+# Only pass app_id and app_password=None. The SDK auto-detects Managed Identity
+APP_ID = os.getenv("MicrosoftAppId", "")
 adapter = BotFrameworkAdapter(
     BotFrameworkAdapterSettings(
         app_id=APP_ID,
-        app_password=None,   # Must be None for Managed Identity
-        app_type=APP_TYPE
+        app_password=None  # Must be None for Managed Identity
     )
 )
 # ───────────────────────────────────────────────────────────────
