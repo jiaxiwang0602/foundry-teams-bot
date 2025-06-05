@@ -1,10 +1,10 @@
 import os, time, traceback, asyncio
 from flask import Flask, request, jsonify, Response
 
-# ── OPTIONAL Bot Framework imports (for /api/echo) ──────────────
+# ── Bot Framework SDK imports (for /api/echo) ──────────────
 from botbuilder.core import BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext
 from botbuilder.schema import Activity
-# ────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
 
 from azure.identity import DefaultAzureCredential
 from azure.ai.projects import AIProjectClient
@@ -12,12 +12,12 @@ from azure.ai.projects import AIProjectClient
 app = Flask(__name__)
 print("Flask app initialized.")
 
-# ───── Foundry client setup ────────────────────────────────────
+# ───── Foundry client setup (unchanged) ───────────────────
 try:
-    print("Initializing Azure credentials...")
+    print("🔐 Initializing Azure credentials for Foundry…")
     credential = DefaultAzureCredential()
     credential.get_token("https://management.azure.com/.default")
-    print("Token acquired ✓")
+    print("✅ Foundry credential acquired")
 
     project_client = AIProjectClient.from_connection_string(
         credential=credential,
@@ -29,28 +29,32 @@ try:
         ),
     )
     agent = project_client.agents.get_agent("asst_cPyJBoSit1obmj3BJyfKSY7R")
-    print("Foundry agent initialized.")
+    print("🤖 Foundry agent initialized.")
 except Exception:
-    print("Failed to initialize Foundry client:")
+    print("❌ Failed to initialize Foundry client:")
     traceback.print_exc()
-# ────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────
 
-# ───── Bot Framework adapter (echo endpoint) ────────────────────
-# Leave APP_ID / APP_PW blank for local Emulator tests.
-APP_ID = os.getenv("MicrosoftAppId", "")
-APP_PW = os.getenv("MicrosoftAppPassword", "")
+# ───── Bot Framework adapter using Managed Identity ────────
+# We assume MicrosoftAppId & MicrosoftAppTenantId & MicrosoftAppType=ManagedIdentity
+# are set as App Settings (or environment variables). No client-secret or cert.
+APP_ID   = os.getenv("MicrosoftAppId", "")
+APP_TYPE = os.getenv("MicrosoftAppType", "ManagedIdentity")  # must be "ManagedIdentity"
+# Note: app_password must be empty when using Managed Identity
 adapter = BotFrameworkAdapter(
-    BotFrameworkAdapterSettings(app_id=APP_ID, app_password=APP_PW)
+    BotFrameworkAdapterSettings(
+        app_id=APP_ID,
+        app_password=None,
+        app_type=APP_TYPE
+    )
 )
-# ────────────────────────────────────────────────────────────────
-
+# ────────────────────────────────────────────────────────────
 
 def repeat_twice(text: str) -> str:
     return text + text
 
-
 def ask_foundry_with_retry(prompt: str, max_attempts: int = 3) -> str:
-    """Create a run, poll until assistant replies or give up."""
+    """Create a Foundry run, poll until assistant replies or give up."""
     attempt = 0
     while attempt < max_attempts:
         attempt += 1
@@ -63,13 +67,13 @@ def ask_foundry_with_retry(prompt: str, max_attempts: int = 3) -> str:
                 thread_id=thread.id, assistant_id=agent.id
             )
 
-            for _ in range(5):  # poll up to 10 s
+            # Poll for reply (up to ~10 seconds)
+            for _ in range(5):
                 msgs = project_client.agents.list_messages(thread_id=thread.id).data
                 reply = next(
                     (
                         p["text"]["value"]
-                        for m in msgs
-                        if m.role == "assistant"
+                        for m in msgs if m.role == "assistant"
                         for p in (m.content if isinstance(m.content, list) else [])
                         if p.get("type") == "text"
                     ),
@@ -79,26 +83,27 @@ def ask_foundry_with_retry(prompt: str, max_attempts: int = 3) -> str:
                     return reply
                 time.sleep(2)
 
-            return "(assistant still processing – try again in a moment)"
+            return "(assistant still processing – try again shortly)"
 
         except Exception:
-            print(f"⚠️  Foundry call failed (attempt {attempt}/{max_attempts})")
+            print(f"⚠️ Foundry call attempt {attempt}/{max_attempts} failed:")
             traceback.print_exc()
             if attempt < max_attempts:
                 time.sleep(2 ** attempt)
             else:
                 return "(failed to contact assistant)"
 
-
 @app.route("/", methods=["GET"])
 def index():
-    return Response("✅ Web app is running.", 200)
+    return Response("✅ Web app is running.", status=200)
 
-
-# ─────────────────── Foundry-powered bot (unchanged) ────────────
+# ── Foundry-powered assistant (unchanged) ─────────────────
 @app.route("/api/messages", methods=["POST"])
 def messages():
-    """POST {text} → Foundry assistant reply."""
+    """
+    POST { "text": "<user question>" }
+    Returns { "reply": "<assistant text>" }.
+    """
     try:
         user_input = (request.json or {}).get("text", "")
         if not user_input:
@@ -110,15 +115,16 @@ def messages():
         return jsonify(reply=reply), 200
 
     except Exception:
-        print("❌ Error while handling request:")
+        print("❌ Error in /api/messages:")
         traceback.print_exc()
         return jsonify(error="internal server error"), 500
 
-
-# ───────────────────── NEW: Bot-Framework echo ───────────────────
+# ── Bot-Framework “echo × 2” endpoint for Teams/Emulator ────
 @app.route("/api/echo", methods=["POST"])
 def echo_bot():
-    """Teams / Emulator entry — replies with <text><text>."""
+    """
+    Teams or Bot-Framework Emulator call this. It replies with <text><text>.
+    """
     try:
         activity = Activity().deserialize(request.json)
 
@@ -130,22 +136,22 @@ def echo_bot():
         asyncio.set_event_loop(loop)
         loop.run_until_complete(adapter.process_activity(activity, "", turn))
         loop.close()
-        return Response(status=200)
 
+        return Response(status=200)
     except Exception:
         traceback.print_exc()
-        return Response("Internal Server Error", 500)
+        return Response("Internal Server Error", status=500)
 
-
-# ───────────── NEW: Plain REST echo for Postman/cURL ─────────────
+# ── Plain REST echo for Postman/cURL (no Bot-Framework) ─────
 @app.route("/api/repeat", methods=["POST"])
 def repeat_endpoint():
-    """POST { "text": "abc" } → { "reply": "abcabc" }"""
+    """
+    POST { "text": "abc" } → { "reply": "abcabc" }
+    """
     txt = (request.json or {}).get("text", "")
     if not txt:
         return jsonify(error="Missing field 'text'"), 400
     return jsonify(reply=repeat_twice(txt)), 200
-
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
