@@ -12,7 +12,13 @@ from azure.ai.projects import AIProjectClient
 app = Flask(__name__)
 print("Flask app initialized.")
 
-# ───── Foundry client setup (unchanged) ───────────────────
+# ───────────── DEBUG – print auth-related env-vars ─────────────
+print("ENV MicrosoftAppType     =", repr(os.getenv("MicrosoftAppType")))
+print("ENV MicrosoftAppId       =", repr(os.getenv("MicrosoftAppId")))
+print("ENV MicrosoftAppTenantId =", repr(os.getenv("MicrosoftAppTenantId")))
+# ───────────────────────────────────────────────────────────────
+
+# ───── Foundry client setup (unchanged) ───────────────────────
 try:
     print("🔐 Initializing Azure credentials for Foundry…")
     credential = DefaultAzureCredential()
@@ -33,21 +39,19 @@ try:
 except Exception:
     print("❌ Failed to initialize Foundry client:")
     traceback.print_exc()
-# ────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
 
-# ───── Bot Framework adapter using Managed Identity ────────
-# We will set MicrosoftAppId and MicrosoftAppTenantId (below) in App Service.
-# The SDK auto-detects Managed Identity (no secret needed).
+# ───── Bot Framework adapter using Managed Identity ──────────
 APP_ID   = os.getenv("MicrosoftAppId", "")
-APP_TYPE = os.getenv("MicrosoftAppType", "ManagedIdentity")  # must be "ManagedIdentity"
+APP_TYPE = os.getenv("MicrosoftAppType", "ManagedIdentity")  # should be "ManagedIdentity"
 adapter = BotFrameworkAdapter(
     BotFrameworkAdapterSettings(
         app_id=APP_ID,
-        app_password=None,           # no secret when using Managed Identity
+        app_password=None,   # Must be None for Managed Identity
         app_type=APP_TYPE
     )
 )
-# ────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
 
 def repeat_twice(text: str) -> str:
     return text + text
@@ -66,7 +70,7 @@ def ask_foundry_with_retry(prompt: str, max_attempts: int = 3) -> str:
                 thread_id=thread.id, assistant_id=agent.id
             )
 
-            # Poll for reply (up to ~10 seconds)
+            # Poll for reply up to ~10 seconds
             for _ in range(5):
                 msgs = project_client.agents.list_messages(thread_id=thread.id).data
                 reply = next(
@@ -96,12 +100,11 @@ def ask_foundry_with_retry(prompt: str, max_attempts: int = 3) -> str:
 def index():
     return Response("✅ Web app is running.", status=200)
 
-# ── Foundry-powered assistant endpoint (unchanged) ─────────
+# ── Foundry-powered assistant endpoint (unchanged) ───────────
 @app.route("/api/messages", methods=["POST"])
 def messages():
     """
-    POST { "text": "<user question>" }
-    Returns   { "reply": "<assistant text>" }.
+    POST { "text": "<user question>" } → { "reply": "<assistant text>" }.
     """
     try:
         user_input = (request.json or {}).get("text", "")
