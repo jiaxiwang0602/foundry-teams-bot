@@ -36,15 +36,14 @@ except Exception:
 # ────────────────────────────────────────────────────────────
 
 # ───── Bot Framework adapter using Managed Identity ────────
-# We assume MicrosoftAppId & MicrosoftAppTenantId & MicrosoftAppType=ManagedIdentity
-# are set as App Settings (or environment variables). No client-secret or cert.
+# We will set MicrosoftAppId and MicrosoftAppTenantId (below) in App Service.
+# The SDK auto-detects Managed Identity (no secret needed).
 APP_ID   = os.getenv("MicrosoftAppId", "")
 APP_TYPE = os.getenv("MicrosoftAppType", "ManagedIdentity")  # must be "ManagedIdentity"
-# Note: app_password must be empty when using Managed Identity
 adapter = BotFrameworkAdapter(
     BotFrameworkAdapterSettings(
         app_id=APP_ID,
-        app_password=None,
+        app_password=None,           # no secret when using Managed Identity
         app_type=APP_TYPE
     )
 )
@@ -97,12 +96,12 @@ def ask_foundry_with_retry(prompt: str, max_attempts: int = 3) -> str:
 def index():
     return Response("✅ Web app is running.", status=200)
 
-# ── Foundry-powered assistant (unchanged) ─────────────────
+# ── Foundry-powered assistant endpoint (unchanged) ─────────
 @app.route("/api/messages", methods=["POST"])
 def messages():
     """
     POST { "text": "<user question>" }
-    Returns { "reply": "<assistant text>" }.
+    Returns   { "reply": "<assistant text>" }.
     """
     try:
         user_input = (request.json or {}).get("text", "")
@@ -119,11 +118,11 @@ def messages():
         traceback.print_exc()
         return jsonify(error="internal server error"), 500
 
-# ── Bot-Framework “echo × 2” endpoint for Teams/Emulator ────
+# ── Bot-Framework “echo × 2” endpoint for Teams/Emulator ─────
 @app.route("/api/echo", methods=["POST"])
 def echo_bot():
     """
-    Teams or Bot-Framework Emulator call this. It replies with <text><text>.
+    Teams (or Emulator) calls this. It replies with <text><text>.
     """
     try:
         activity = Activity().deserialize(request.json)
@@ -142,7 +141,7 @@ def echo_bot():
         traceback.print_exc()
         return Response("Internal Server Error", status=500)
 
-# ── Plain REST echo for Postman/cURL (no Bot-Framework) ─────
+# ── Plain REST echo for Postman/cURL (no Bot-Framework) ──────
 @app.route("/api/repeat", methods=["POST"])
 def repeat_endpoint():
     """
