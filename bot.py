@@ -100,7 +100,7 @@ def index():
     return Response("✅ Web app is running.", status=200)
 
 # ── Foundry-powered assistant endpoint (unchanged) ───────────
-@app.route("/api/messages", methods=["POST"])
+@app.route("/api/messages1", methods=["POST"])
 def messages():
     """
     POST { "text": "<user question>" } → { "reply": "<assistant text>" }.
@@ -121,7 +121,7 @@ def messages():
         return jsonify(error="internal server error"), 500
 
 # ── Bot-Framework “echo × 2” endpoint for Teams/Emulator ─────
-@app.route("/api/echo", methods=["POST"])
+@app.route("/api/messages", methods=["POST"])
 def echo_bot():
     """
     Teams (or Emulator) calls this. It replies with <text><text>.
@@ -144,7 +144,7 @@ def echo_bot():
         return Response("Internal Server Error", status=500)
 
 # ── Plain REST echo for Postman/cURL (no Bot-Framework) ──────
-@app.route("/api/repeat", methods=["POST"])
+@app.route("/api/echo", methods=["POST"])
 def repeat_endpoint():
     """
     POST { "text": "abc" } → { "reply": "abcabc" }
