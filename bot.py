@@ -100,7 +100,7 @@ def index():
     return Response("✅ Web app is running.", status=200)
 
 # ── Foundry-powered assistant endpoint (unchanged) ───────────
-@app.route("/api/messages1", methods=["POST"])
+@app.route("/api/messageses1", methods=["POST"])
 def messages():
     """
     POST { "text": "<user question>" } → { "reply": "<assistant text>" }.
